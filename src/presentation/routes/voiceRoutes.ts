@@ -99,7 +99,8 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
         }
       }
 
-      res.json({ transcript, replyText, ...response });
+      const { replyText: originalReplyText, ...rest } = response;
+      res.json({ transcript, replyText, ...rest });
 
       // Borrar archivo .webm original
       try {

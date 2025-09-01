@@ -20,19 +20,17 @@ process.env.PATH = `${path.dirname(ffmpegPath!)}:${process.env.PATH}`;
 const storage = multer.diskStorage({
   destination: "uploads/",
   filename: (req, file, cb) => {
-  const ext = path.extname(file.originalname) || ".webm";
-  const filename = `${Date.now()}-${uuidv4()}${ext}`;
-  cb(null, filename);
-}
+    const ext = path.extname(file.originalname) || ".wav";
+    const filename = `${Date.now()}-${uuidv4()}${ext}`;
+    cb(null, filename);
+  },
 });
-
 const upload = multer({ storage });
 
 export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
   const router = Router();
 
   router.post("/process", upload.single("audio"), async (req, res) => {
-    console.log(req.file)
     if (!req.file?.path) {
       logger.warn("No se envió audio");
       return res.status(400).json({ error: "No se envió audio" });
@@ -44,7 +42,7 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
     try {
       const result = await nodewhisper(audioFile, {
         modelName: "/opt/render/project/src/node_modules/nodejs-whisper/cpp/whisper.cpp/models/ggml-tiny.bin",
-        autoDownloadModelName: "tiny",
+        autoDownloadModelName: undefined,
         removeWavFileAfterTranscription: true,
         withCuda: false,
         whisperOptions: {
@@ -61,7 +59,6 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
       logger.info("Usando sessionId:", sessionId);
 
       const response = await ai.chat(transcript, sessionId.toString());
-
       let replyText = response.replyText || "";
 
       if (response.actions) {
@@ -79,6 +76,7 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
               replyText = favorites.length
                 ? `Tus jugadores favoritos son: ${favorites.map(p => p.name).join(", ")}.`
                 : "No tienes jugadores favoritos aún.";
+              logger.info("Jugadores favoritos consultados:", favorites);
               break;
           }
         }
@@ -88,12 +86,10 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
 
       res.json({ transcript, replyText, ...rest });
 
-
     } catch (err) {
       logger.error("Error procesando audio:", err);
       res.status(500).json({ error: "Error procesando audio" });
-    }
-    finally {
+    } finally {
       try {
         await fs.promises.unlink(audioFile);
         logger.info("Archivo temporal borrado:", audioFile);

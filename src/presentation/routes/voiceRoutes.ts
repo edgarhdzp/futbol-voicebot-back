@@ -3,7 +3,6 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import { nodewhisper } from "nodejs-whisper";
-import ffmpegPath from "ffmpeg-static";
 import { v4 as uuidv4 } from "uuid";
 import { AIService } from "../../domain/services/AIService";
 import { AddFavoritePlayerUseCase } from "../../application/usecases/AddFavoritePlayerUseCase";
@@ -15,8 +14,7 @@ const logger = {
   error: (...args: any[]) => console.error("[ERROR]", ...args),
 };
 
-process.env.PATH = `${path.dirname(ffmpegPath!)}:${process.env.PATH}`;
-
+// Multer para recibir el archivo
 const storage = multer.diskStorage({
   destination: "uploads/",
   filename: (req, file, cb) => {
@@ -40,9 +38,9 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
     logger.info("Archivo recibido:", audioFile);
 
     try {
-      const result = await nodewhisper(audioFile, {
-        modelName: "/opt/render/project/src/node_modules/nodejs-whisper/cpp/whisper.cpp/models/ggml-tiny.bin",
-        autoDownloadModelName: undefined,
+      // Aquí usamos directamente el WAV enviado por el frontend
+      const transcript = (await nodewhisper(audioFile, {
+        modelName: "tiny", // usa el modelo precompilado
         removeWavFileAfterTranscription: true,
         withCuda: false,
         whisperOptions: {
@@ -50,31 +48,34 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
           outputInJson: false,
           translateToEnglish: false,
         },
-      });
+      })) as string;
 
-      const transcript = result || "";
       logger.info("Transcripción:", transcript);
 
       const sessionId = req.body.sessionId || uuidv4();
       logger.info("Usando sessionId:", sessionId);
 
       const response = await ai.chat(transcript, sessionId.toString());
-      let replyText = response.replyText || "";
 
-      if (response.actions) {
+      let replyText = response.replyText ?? "";
+
+      // Ejecutar acciones
+      if (response.actions?.length) {
         for (const action of response.actions) {
           switch (action.type) {
             case "ADD_FAVORITE_PLAYER":
               logger.info("ADD_FAVORITE_PLAYER action recibida");
-              const addUC = new AddFavoritePlayerUseCase(favoriteRepo);
-              await addUC.execute(sessionId.toString(), { name: action.payload.playerName });
-              logger.info("Jugador agregado a favoritos:", action.payload.playerName);
+              await new AddFavoritePlayerUseCase(favoriteRepo).execute(
+                sessionId.toString(),
+                { name: action.payload?.playerName ?? "" }
+              );
+              logger.info("Jugador agregado a favoritos:", action.payload?.playerName);
               break;
 
             case "GET_FAVORITE_PLAYERS":
               const favorites = await favoriteRepo.listFavorites(sessionId.toString());
               replyText = favorites.length
-                ? `Tus jugadores favoritos son: ${favorites.map(p => p.name).join(", ")}.`
+                ? `Tus jugadores favoritos son: ${favorites.map((p) => p.name).join(", ")}.`
                 : "No tienes jugadores favoritos aún.";
               logger.info("Jugadores favoritos consultados:", favorites);
               break;
@@ -82,9 +83,7 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
         }
       }
 
-      const { replyText: originalReplyText, ...rest } = response;
-
-      res.json({ transcript, replyText, ...rest });
+      res.json({ transcript, replyText, actions: response.actions ?? [] });
 
     } catch (err) {
       logger.error("Error procesando audio:", err);

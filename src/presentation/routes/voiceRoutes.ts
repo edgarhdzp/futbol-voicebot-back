@@ -4,7 +4,6 @@ import fs from "fs";
 import path from "path";
 import { nodewhisper } from "nodejs-whisper";
 import ffmpegPath from "ffmpeg-static";
-import { exec } from "child_process";
 import { v4 as uuidv4 } from "uuid";
 import { AIService } from "../../domain/services/AIService";
 import { AddFavoritePlayerUseCase } from "../../application/usecases/AddFavoritePlayerUseCase";
@@ -18,32 +17,22 @@ const logger = {
 
 process.env.PATH = `${path.dirname(ffmpegPath!)}:${process.env.PATH}`;
 
-// Multer
 const storage = multer.diskStorage({
   destination: "uploads/",
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".webm";
-    const filename = `${Date.now()}-${uuidv4()}${ext}`;
-    cb(null, filename);
-  },
-});
-const upload = multer({ storage });
-
-// Función para convertir a WAV
-async function convertWebmToWav(inputPath: string): Promise<string> {
-  const outputPath = inputPath.replace(path.extname(inputPath), ".wav");
-  return new Promise((resolve, reject) => {
-    exec(`ffmpeg -y -i "${inputPath}" "${outputPath}"`, (err) => {
-      if (err) return reject(err);
-      resolve(outputPath);
-    });
-  });
+  const ext = path.extname(file.originalname) || ".webm";
+  const filename = `${Date.now()}-${uuidv4()}${ext}`;
+  cb(null, filename);
 }
+});
+
+const upload = multer({ storage });
 
 export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
   const router = Router();
 
   router.post("/process", upload.single("audio"), async (req, res) => {
+    console.log(req.file)
     if (!req.file?.path) {
       logger.warn("No se envió audio");
       return res.status(400).json({ error: "No se envió audio" });
@@ -53,15 +42,9 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
     logger.info("Archivo recibido:", audioFile);
 
     try {
-      // Convertir a WAV
-      const wavFile = await convertWebmToWav(audioFile);
-      logger.info("Archivo convertido a WAV:", wavFile);
-
-      const sessionId = req.body.sessionId || uuidv4();
-      logger.info("Usando sessionId:", sessionId);
-
-      const result = await nodewhisper(wavFile, {
-        modelName: "/opt/render/project/src/node_modules/nodejs-whisper/cpp/whisper.cpp/models/ggml-tiny.bin",
+      const result = await nodewhisper(audioFile, {
+        modelName: "tiny",
+        autoDownloadModelName: "tiny",
         removeWavFileAfterTranscription: true,
         withCuda: false,
         whisperOptions: {
@@ -74,10 +57,13 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
       const transcript = result || "";
       logger.info("Transcripción:", transcript);
 
+      const sessionId = req.body.sessionId || uuidv4();
+      logger.info("Usando sessionId:", sessionId);
+
       const response = await ai.chat(transcript, sessionId.toString());
+
       let replyText = response.replyText || "";
 
-      // Ejecutar acciones
       if (response.actions) {
         for (const action of response.actions) {
           switch (action.type) {
@@ -93,25 +79,27 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
               replyText = favorites.length
                 ? `Tus jugadores favoritos son: ${favorites.map(p => p.name).join(", ")}.`
                 : "No tienes jugadores favoritos aún.";
-              logger.info("Jugadores favoritos consultados:", favorites);
               break;
           }
         }
       }
 
       const { replyText: originalReplyText, ...rest } = response;
+
       res.json({ transcript, replyText, ...rest });
 
-      // Borrar archivo .webm original
-      try {
-        await fs.promises.unlink(audioFile);
-        logger.info("Archivo original borrado:", audioFile);
-      } catch (err) {
-        logger.warn("No se pudo borrar el archivo original:", audioFile, err);
-      }
+
     } catch (err) {
       logger.error("Error procesando audio:", err);
       res.status(500).json({ error: "Error procesando audio" });
+    }
+    finally {
+      try {
+        await fs.promises.unlink(audioFile);
+        logger.info("Archivo temporal borrado:", audioFile);
+      } catch (err) {
+        logger.warn("No se pudo borrar el archivo:", audioFile, err);
+      }
     }
   });
 

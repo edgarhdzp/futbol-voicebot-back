@@ -9,9 +9,9 @@
     "test": "jest --detectOpenHandles"
   },
   "engines": {
-  "node": "20.x",
-  "npm": "10.x"
-},
+    "node": "20.x",
+    "npm": "10.x"
+  },
   "dependencies": {
     "@google/generative-ai": "^0.15.0",
     "cors": "^2.8.5",

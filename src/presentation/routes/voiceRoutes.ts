@@ -38,7 +38,7 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
     logger.info("Archivo recibido:", audioFile);
 
     try {
-      const transcript = await nodewhisper(audioFile, {
+      const transcript = (await nodewhisper(audioFile, {
         modelName: "/app/models/ggml-tiny.bin",
         removeWavFileAfterTranscription: true,
         withCuda: false,
@@ -47,7 +47,7 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
           outputInJson: false,
           translateToEnglish: false,
         },
-      });
+      })) as string;
 
       logger.info("Transcripción:", transcript);
 

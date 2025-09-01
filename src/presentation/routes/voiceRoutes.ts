@@ -43,7 +43,7 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
 
     try {
       const result = await nodewhisper(audioFile, {
-        modelName: "tiny",
+        modelName: "/opt/render/project/src/node_modules/nodejs-whisper/cpp/whisper.cpp/models/ggml-tiny.bin",
         autoDownloadModelName: "tiny",
         removeWavFileAfterTranscription: true,
         withCuda: false,

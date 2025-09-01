@@ -38,21 +38,21 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
       return res.status(400).json({ error: "No se envió audio" });
     }
 
-    const audioFile = path.resolve(req.file.path);
-    logger.info("Archivo recibido:", audioFile);
+     const audioFile = path.resolve(req.file.path);
+     logger.info("Archivo recibido:", audioFile);
 
     try {
       const result = await nodewhisper(audioFile, {
-        modelName: "tiny",
-        autoDownloadModelName: "tiny",
-        removeWavFileAfterTranscription: false,
-        withCuda: false,
-        whisperOptions: {
-          outputInText: false,
-          outputInJson: false,
-          translateToEnglish: false,
-        },
-      });
+      modelName: "tiny",
+      autoDownloadModelName: "tiny",
+      removeWavFileAfterTranscription: false,
+      withCuda: false,
+      whisperOptions: {
+        outputInText: false,
+        outputInJson: false,
+        translateToEnglish: false
+      },
+    });
 
       const transcript = result || "";
       logger.info("Transcripción:", transcript);

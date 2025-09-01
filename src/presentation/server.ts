@@ -34,5 +34,5 @@ export async function createServer() {
 
   app.get("/health", (_, res) => res.json({ status: "ok" }));
 
-  app.listen(env.port, () => logger.info(`Server running on http://localhost:${env.port}`));
+  app.listen(env.port || 3000, () => logger.info(`Server running on http://localhost:${env.port || 3000}`));
 }

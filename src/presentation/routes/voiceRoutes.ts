@@ -41,14 +41,15 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
     const audioFile = path.resolve(req.file.path);
     logger.info("Archivo recibido:", audioFile);
 
+    const modelPath = path.resolve(__dirname, "../../models/ggml-tiny.bin");
+
     try {
       const result = await nodewhisper(audioFile, {
-        modelName: "tiny",
-        autoDownloadModelName: "tiny",
+        modelName: modelPath,
         removeWavFileAfterTranscription: false,
         withCuda: false,
         whisperOptions: {
-          outputInText: false,
+          outputInText: true,
           outputInJson: false,
           translateToEnglish: false,
         },

@@ -44,10 +44,7 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
     }
 
     const originalFile = path.resolve(req.file.path);
-    const wavFile = path.resolve(
-      "uploads",
-      `${Date.now()}-${uuidv4()}.wav`
-    );
+    const wavFile = path.resolve("uploads", `${Date.now()}-${uuidv4()}.wav`);
 
     try {
       // 🔄 Convertimos SIEMPRE a WAV válido PCM 16kHz
@@ -62,7 +59,6 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
         autoDownloadModelName: "tiny",
         removeWavFileAfterTranscription: false,
         withCuda: false,
-        logger,
         whisperOptions: {
           outputInText: true,
           outputInJson: false,
@@ -76,13 +72,14 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
       const sessionId = req.body.sessionId || uuidv4();
       logger.info("Usando sessionId:", sessionId);
 
-      const response = await ai.chat(transcript, sessionId.toString());
+      // 👇 Renombramos response → aiResponse
+      const aiResponse = await ai.chat(transcript, sessionId.toString());
 
-      let replyText = response.replyText || "";
+      let replyText = aiResponse.replyText || "";
 
       // Ejecutar acciones
-      if (response.actions) {
-        for (const action of response.actions) {
+      if (aiResponse.actions) {
+        for (const action of aiResponse.actions) {
           switch (action.type) {
             case "ADD_FAVORITE_PLAYER":
               logger.info("ADD_FAVORITE_PLAYER action recibida");
@@ -110,7 +107,11 @@ export function voiceRoutes(ai: AIService, favoriteRepo: FavoriteRepository) {
         }
       }
 
-      res.json({ transcript, replyText, ...response });
+      res.json({
+        transcript,
+        ...aiResponse,
+        replyText,
+      });
     } catch (err) {
       logger.error("Error procesando audio:", err);
       res.status(500).json({ error: "Error procesando audio" });

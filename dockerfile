@@ -1,4 +1,4 @@
-# Etapa base: Node 20
+# Etapa base
 FROM node:20
 
 # Crear directorio de trabajo
@@ -10,21 +10,24 @@ COPY package*.json ./
 # Instalar dependencias del sistema necesarias
 RUN apt-get update && apt-get install -y \
     ffmpeg \
-    cmake \
+    wget \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar dependencias de Node
 RUN npm install
 
-# Copiar todo el código fuente
-COPY . .
+# Crear carpeta para modelos
+RUN mkdir -p /app/models
 
-# Compilar TypeScript a JavaScript
-RUN npm run build
+# Descargar modelo tiny de nodejs-whisper
+RUN npx nodejs-whisper download tiny --dest /app/models
+
+# Copiar todo el código
+COPY . .
 
 # Exponer el puerto que usa tu app
 EXPOSE 3000
 
-# Comando para iniciar la app compilada
+# Comando para iniciar la app
 CMD ["npm", "start"]
